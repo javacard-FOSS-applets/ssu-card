@@ -8,6 +8,7 @@ import javacard.security.ECPrivateKey;
 import javacard.security.ECPublicKey;
 import javacard.security.ECKey;
 import javacard.security.Signature;
+import javacard.security.CryptoException;
 import javacardx.framework.util.ArrayLogic;
 
 public class Test extends javacard.framework.Applet {
@@ -19,6 +20,7 @@ public class Test extends javacard.framework.Applet {
         (ECPrivateKey)KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, KeyBuilder.LENGTH_EC_FP_256, false));
     Secp256k1.setCommonCurveParameters((ECKey)keyPair.getPrivate());
     Secp256k1.setCommonCurveParameters((ECKey)keyPair.getPublic());
+    keyPair.genKeyPair();
 
     register();
   }
@@ -30,15 +32,22 @@ public class Test extends javacard.framework.Applet {
   public void process(APDU apdu) {
     byte[] buffer = apdu.getBuffer();
     short lc = apdu.setIncomingAndReceive();
+    short pkl;
 
-    ECPublicKey pubkey = (ECPublicKey)keyPair.getPublic();
-    short pkl = pubkey.getW(buffer, (short)2);
-    short[] pklArray = {pkl};
+    try {
+      ECPublicKey pubkey = (ECPublicKey)keyPair.getPublic();
+      pkl = pubkey.getW(buffer, (short)0);
+    } catch (CryptoException e) {
+      buffer[0] = (byte)e.getReason();
+      pkl = 1;
+    }
 
-    short outLen = ArrayLogic.arrayCopyRepack(pklArray, (short)0, (short)1, buffer, (short)0);
+    apdu.setOutgoingAndSend((short)0, pkl);
 
-    // sig.sign(...);
-    apdu.setOutgoingAndSend((short)0, outLen);
+/*
+    buffer[0] = (byte)pkl;
+    apdu.setOutgoingAndSend((short)0, (short)1);
+*/
   }
 
 }

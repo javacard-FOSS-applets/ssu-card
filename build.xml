@@ -4,7 +4,7 @@
   <target name="main">
     <javacard jckit="sdks/jc304_kit">
       <cap output="Test.cap" sources="src" classes="build">
-        <applet class="is.lamassu.ssucard.Test" aid="A00000000102"/>
+        <applet class="is.lamassu.ssucard.Test" aid="A00000000107"/>
       </cap>
     </javacard>
   </target>
