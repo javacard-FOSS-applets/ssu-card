@@ -8,11 +8,13 @@ import javacard.security.ECPrivateKey;
 import javacard.security.ECPublicKey;
 import javacard.security.ECKey;
 import javacard.security.Signature;
+import javacardx.framework.util.ArrayLogic;
 
 public class Test extends javacard.framework.Applet {
+  private KeyPair keyPair;
 
   protected Test() {
-    KeyPair keyPair = new KeyPair(
+    keyPair = new KeyPair(
         (ECPublicKey)KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, KeyBuilder.LENGTH_EC_FP_256, false),
         (ECPrivateKey)KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, KeyBuilder.LENGTH_EC_FP_256, false));
     Secp256k1.setCommonCurveParameters((ECKey)keyPair.getPrivate());
@@ -28,9 +30,15 @@ public class Test extends javacard.framework.Applet {
   public void process(APDU apdu) {
     byte[] buffer = apdu.getBuffer();
     short lc = apdu.setIncomingAndReceive();
-    Signature sig = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
+
+    ECPublicKey pubkey = (ECPublicKey)keyPair.getPublic();
+    short pkl = pubkey.getW(buffer, (short)2);
+    short[] pklArray = {pkl};
+
+    short outLen = ArrayLogic.arrayCopyRepack(pklArray, (short)0, (short)1, buffer, (short)0);
+
     // sig.sign(...);
-    apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, lc);
+    apdu.setOutgoingAndSend((short)0, outLen);
   }
 
 }
