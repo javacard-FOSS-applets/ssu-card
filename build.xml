@@ -1,0 +1,16 @@
+<project basedir="." default="main" name="Test build">
+  <taskdef name="javacard" classname="pro.javacard.ant.JavaCard" classpath="ext/ant-javacard.jar"/>
+
+  <target name="main">
+    <javacard jckit="sdks/jc304_kit">
+      <cap output="Test.cap" sources="src" classes="build">
+        <applet class="is.lamassu.ssucard.Test" aid="A00000000102"/>
+      </cap>
+    </javacard>
+  </target>
+
+  <target name="Secp256k1">
+    <javac srcdir="src/is/lamassu" destdir="${classes.dir}"/>
+  </target>
+
+</project>
