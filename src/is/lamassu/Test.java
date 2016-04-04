@@ -17,6 +17,9 @@ import javacard.framework.JCSystem;
 
 public class Test extends javacard.framework.Applet {
   private KeyPair keyPair;
+  private Signature sig;
+  private ECPrivateKey privkey;
+  private ECPublicKey pubkey;
 
   protected Test() {
     keyPair = new KeyPair(
@@ -25,6 +28,10 @@ public class Test extends javacard.framework.Applet {
     Secp256k1.setCommonCurveParameters((ECKey)keyPair.getPrivate());
     Secp256k1.setCommonCurveParameters((ECKey)keyPair.getPublic());
     keyPair.genKeyPair();
+    sig = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
+    privkey = (ECPrivateKey)keyPair.getPrivate();
+    pubkey = (ECPublicKey)keyPair.getPublic();
+    sig.init(privkey, Signature.MODE_SIGN);
 
     register();
   }
@@ -37,7 +44,6 @@ public class Test extends javacard.framework.Applet {
     byte[] buffer = apdu.getBuffer();
     byte cla = buffer[ISO7816.OFFSET_CLA];
     short lc = apdu.setIncomingAndReceive();
-    Signature sig;
 
     if (cla != (byte)0xb0) {
       ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
@@ -47,17 +53,13 @@ public class Test extends javacard.framework.Applet {
 
     switch (buffer[ISO7816.OFFSET_INS]) {
       case INS_PUBKEY:
-        ECPublicKey pubkey = (ECPublicKey)keyPair.getPublic();
         pkl = pubkey.getW(buffer, (short)0);
         apdu.setOutgoingAndSend((short)0, pkl);
         break;
       case INS_SIGN:
-        sig = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
-        ECPrivateKey privkey = (ECPrivateKey)keyPair.getPrivate();
         short hashLen = (short)buffer[ISO7816.OFFSET_LC];
 
         try {
-          sig.init(privkey, Signature.MODE_SIGN);
           short rLen = sig.signPreComputedHash(buffer, (short)ISO7816.OFFSET_CDATA,
               hashLen, buffer, (short)0);
           apdu.setOutgoingAndSend((short)0, rLen);
