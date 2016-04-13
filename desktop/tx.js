@@ -34,14 +34,17 @@ var transaction = new bitcore.Transaction()
 
 // sign(transaction, pubkey)
 
-var hashes = getHashes(transaction, pubkey)
-console.log(BufferUtil.reverse(hashes[0]).toString('hex'))
+var sigStuffs = getHashes(transaction, pubkey)
+var sigStuff = sigStuffs[0]
+console.log(BufferUtil.reverse(sigStuff.hash).toString('hex'))
 
 var sigStr = '3045022100DF881442164DE9C5DAD827534F01D3CC63A28F9AAC847CDE842D879FF7A3688E022014EE1B23C0C1C362B011E1A059A235CB63A5127B54C1E4E12D52CF9740C3A445'
 var sig = Signature.fromString(sigStr)
 sig.s = ECDSA.toLowS(sig.s)
 
-applySignature(transaction, pubkey, Signature.SIGHASH_ALL, sig)
+sigStuff.signature = sig
+var txSig = new TransactionSignature(sigStuff)
+transaction.applySignature(txSig)
 console.log(transaction.serialize())
 
 function getHashes (tx, publicKey, sigtype) {
@@ -54,20 +57,6 @@ function getHashes (tx, publicKey, sigtype) {
   }
 
   return getTransactionHashes(tx, publicKey, sigtype)
-}
-
-function applySignature (transaction, publicKey, sigtype, signature) {
-  var index = 0
-  var input = transaction.inputs[index]
-  var txSig = new TransactionSignature({
-    publicKey: publicKey,
-    prevTxId: input.prevTxId,
-    outputIndex: input.outputIndex,
-    inputIndex: index,
-    signature: signature,
-    sigtype: sigtype
-  })
-  transaction.applySignature(txSig)
 }
 
 function getTransactionHashes (transaction, publicKey, sigtype) {
@@ -88,8 +77,16 @@ function getInputHashes (input, transaction, publicKey, index, sigtype, hashData
   sigtype = sigtype || Signature.SIGHASH_ALL
 
   if (BufferUtil.equals(hashData, input.output.script.getPublicKeyHash())) {
-    var hash = Sighash.sighash(transaction, sigtype, index, input.output.script)
-    return [hash]
+    var sigStuff = {
+      publicKey: publicKey,
+      prevTxId: input.prevTxId,
+      outputIndex: input.outputIndex,
+      inputIndex: index,
+      hash: Sighash.sighash(transaction, sigtype, index, input.output.script),
+      sigtype: sigtype
+    }
+
+    return [sigStuff]
   }
   return []
 }
