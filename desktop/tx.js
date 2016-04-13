@@ -32,60 +32,64 @@ var transaction = new bitcore.Transaction()
   .to('mh3oC4JjgEzhFWZrKadFrYWw54JGQr9rpz', 0.002 * 1e8)
   .change('mg2gGCSYXPDnG5q1W25tWdy2iScTLuubDE')
 
-sign(transaction, pubkey)
+// sign(transaction, pubkey)
 
+var hashes = getHashes(transaction, pubkey)
+console.log(BufferUtil.reverse(hashes[0]).toString('hex'))
+
+var sigStr = '3045022100DF881442164DE9C5DAD827534F01D3CC63A28F9AAC847CDE842D879FF7A3688E022014EE1B23C0C1C362B011E1A059A235CB63A5127B54C1E4E12D52CF9740C3A445'
+var sig = Signature.fromString(sigStr)
+sig.s = ECDSA.toLowS(sig.s)
+
+applySignature(transaction, pubkey, Signature.SIGHASH_ALL, sig)
 console.log(transaction.serialize())
 
-function sign (tx, publicKey, sigtype) {
+function getHashes (tx, publicKey, sigtype) {
   $.checkState(tx.hasAllUtxoInfo())
   if (_.isArray(publicKey)) {
     _.each(publicKey, function (publicKey) {
-      sign(tx, publicKey, sigtype)
+      getHashes(tx, publicKey, sigtype)
     })
     return
   }
-  _.each(getSignatures(tx, publicKey, sigtype), function (signature) {
-    tx.applySignature(signature)
-  })
-  return this
+
+  return getTransactionHashes(tx, publicKey, sigtype)
 }
 
-function getSignatures (transaction, publicKey, sigtype) {
+function applySignature (transaction, publicKey, sigtype, signature) {
+  var index = 0
+  var input = transaction.inputs[index]
+  var txSig = new TransactionSignature({
+    publicKey: publicKey,
+    prevTxId: input.prevTxId,
+    outputIndex: input.outputIndex,
+    inputIndex: index,
+    signature: signature,
+    sigtype: sigtype
+  })
+  transaction.applySignature(txSig)
+}
+
+function getTransactionHashes (transaction, publicKey, sigtype) {
   sigtype = sigtype || Signature.SIGHASH_ALL
   var results = []
   var hashData = Hash.sha256ripemd160(publicKey.toBuffer())
   _.each(transaction.inputs, function forEachInput (input, index) {
-    _.each(getInputSignatures(input, transaction, publicKey, index, sigtype, hashData), function (signature) {
-      results.push(signature)
+    _.each(getInputHashes(input, transaction, publicKey, index, sigtype, hashData), function (hash) {
+      results.push(hash)
     })
   })
   return results
 }
 
-function getInputSignatures (input, transaction, publicKey, index, sigtype, hashData) {
+function getInputHashes (input, transaction, publicKey, index, sigtype, hashData) {
   $.checkState(input.output instanceof Output)
   hashData = hashData || Hash.sha256ripemd160(publicKey.toBuffer())
   sigtype = sigtype || Signature.SIGHASH_ALL
 
   if (BufferUtil.equals(hashData, input.output.script.getPublicKeyHash())) {
-    return [new TransactionSignature({
-      publicKey: publicKey,
-      prevTxId: input.prevTxId,
-      outputIndex: input.outputIndex,
-      inputIndex: index,
-      signature: sighashSign(transaction, sigtype, index, input.output.script),
-      sigtype: sigtype
-    })]
+    var hash = Sighash.sighash(transaction, sigtype, index, input.output.script)
+    return [hash]
   }
   return []
-}
-
-function sighashSign (transaction, sighashType, inputIndex, subscript, signer) {
-  var hashbuf = Sighash.sighash(transaction, sighashType, inputIndex, subscript)
-  console.log('hash to sign:')
-  console.log(BufferUtil.reverse(hashbuf).toString('hex'))
-  var sigStr = '3045022100DF881442164DE9C5DAD827534F01D3CC63A28F9AAC847CDE842D879FF7A3688E022014EE1B23C0C1C362B011E1A059A235CB63A5127B54C1E4E12D52CF9740C3A445'
-  var sig = Signature.fromString(sigStr)
-  sig.s = ECDSA.toLowS(sig.s)
-  return sig
 }
