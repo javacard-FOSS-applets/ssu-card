@@ -1,3 +1,4 @@
+var axios = require('axios')
 var bitcore = require('bitcore-lib')
 var $ = bitcore.util.preconditions
 var BufferUtil = bitcore.util.buffer
@@ -12,46 +13,61 @@ var Sighash = Transaction.Sighash
 
 var _ = require('lodash')
 
-// var wif = 'cTUDt8nosJH1fHTryCLhYeQ915KFRZuBwWxN5NgQhh9T12LAiJC4'
-// var privkey = new bitcore.PrivateKey(wif)
-var pubkeyStr = '04ae4a2b223d75a9535f42d274990da6ff8e892d51d17395c5306e3b05eefe6f1120d7bb59af7420882727c55c0dd9f063642755bd9e5c616e3335a05bb5b383aa'
-var pubkey = new bitcore.PublicKey(pubkeyStr, {network: Networks.testnet})
-console.log(pubkey.toAddress())
-// var address = privkey.toAddress()
+// axios.defaults.headers.post['Content-Type'] = 'application/json'
 
-var utxo = {
-  txId: 'b5a2d5e33ddc2f57cacc4d702e2cc8bfde3479660617f7a9a23ecf3daa7a61ff',
-  outputIndex: 1,
-  address: 'mxVvKCZZjz6FKynELAkZ2EmDPfp3FEgWj5',
-  script: '76a914ba4811c066b4800ae30be9a29fca0ade4a61b7fc88ac',
-  satoshis: Math.floor(0.01 * 1e8)
+module.exports = {
+  dispatch: dispatch,
+  getUnsignedTransactions: getUnsignedTransactions,
+  build: build
 }
 
-var transaction = new bitcore.Transaction()
-  .from(utxo)
-  .to('mh3oC4JjgEzhFWZrKadFrYWw54JGQr9rpz', 0.002 * 1e8)
-  .change('mg2gGCSYXPDnG5q1W25tWdy2iScTLuubDE')
+function build (pubkeyStr, toAddress, satoshis) {
+  var pubkey = new bitcore.PublicKey(pubkeyStr, {network: Networks.testnet})
+  var address = pubkey.toAddress()
 
-// sign(transaction, pubkey)
+  return axios.get('http://tbtc.blockr.io/api/v1/address/unspent/' + address)
+  .then(function (res) {
+    var _utxo = res.data.data.unspent[0]
+    var utxo = {
+      txId: _utxo.tx,
+      outputIndex: _utxo.n,
+      address: res.data.data.address,
+      script: _utxo.script,
+      satoshis: Math.round(_utxo.amount * 1e8)
+    }
 
-var sigStuffs = getHashes(transaction, pubkey)
-var sigStuff = sigStuffs[0]
-console.log(BufferUtil.reverse(sigStuff.hash).toString('hex'))
+    var transaction = new bitcore.Transaction()
+      .from(utxo)
+      .to(toAddress, satoshis)
+      .change(address)
 
-var sigStr = '3045022100DF881442164DE9C5DAD827534F01D3CC63A28F9AAC847CDE842D879FF7A3688E022014EE1B23C0C1C362B011E1A059A235CB63A5127B54C1E4E12D52CF9740C3A445'
-var sig = Signature.fromString(sigStr)
-sig.s = ECDSA.toLowS(sig.s)
+    var unsignedTxs = getUnsignedTransactions(transaction, pubkey)
 
-sigStuff.signature = sig
-var txSig = new TransactionSignature(sigStuff)
-transaction.applySignature(txSig)
-console.log(transaction.serialize())
+    return {
+      transaction: transaction,
+      unsignedTransactions: unsignedTxs
+    }
+  })
+}
 
-function getHashes (tx, publicKey, sigtype) {
+function dispatch (transaction, sigStuff, sigStr) {
+  applySignature(transaction, sigStuff, sigStr)
+  return axios.post('http://tbtc.blockr.io/api/v1/tx/push', {hex: transaction.serialize()})
+}
+
+function applySignature (transaction, sigStuff, sigStr) {
+  var sig = Signature.fromString(sigStr)
+  sig.s = ECDSA.toLowS(sig.s)
+  sigStuff.signature = sig
+  var txSig = new TransactionSignature(sigStuff)
+  transaction.applySignature(txSig)
+}
+
+function getUnsignedTransactions (tx, publicKey, sigtype) {
   $.checkState(tx.hasAllUtxoInfo())
   if (_.isArray(publicKey)) {
     _.each(publicKey, function (publicKey) {
-      getHashes(tx, publicKey, sigtype)
+      getUnsignedTransactions(tx, publicKey, sigtype)
     })
     return
   }
@@ -77,12 +93,13 @@ function getInputHashes (input, transaction, publicKey, index, sigtype, hashData
   sigtype = sigtype || Signature.SIGHASH_ALL
 
   if (BufferUtil.equals(hashData, input.output.script.getPublicKeyHash())) {
+    var hash = Sighash.sighash(transaction, sigtype, index, input.output.script)
     var sigStuff = {
       publicKey: publicKey,
       prevTxId: input.prevTxId,
       outputIndex: input.outputIndex,
       inputIndex: index,
-      hash: Sighash.sighash(transaction, sigtype, index, input.output.script),
+      hash: BufferUtil.reverse(hash).toString('hex'),
       sigtype: sigtype
     }
 
