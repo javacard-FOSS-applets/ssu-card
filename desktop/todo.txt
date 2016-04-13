@@ -1,2 +1,4 @@
-- my guess is that there's an endian issue with the signature
-- it only verifies with big-endian and bitcoin needs little-endian
+- parse utxos based on some API, blockr.io is fine
+- implement end-to-end tx on card touch
+- implement on main-net
+- implement for geth
