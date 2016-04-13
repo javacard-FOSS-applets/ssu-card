@@ -1,5 +1,6 @@
 var cardreader = require('card-reader')
-var bitcore = require('bitcore')
+var bitcore = require('bitcore-lib')
+var Networks = bitcore.Networks
 
 cardreader.on('device-activated', function (reader) {
   console.log(`Device '${reader.reader.name}' activated`)
@@ -34,9 +35,11 @@ cardreader.on('card-inserted', function (reader, status) {
     return cardreader.issueCommand(reader.reader, 'b0010000')
   })
   .then(function (res) {
-    var publicKey = new bitcore.PublicKey(res.slice(0, -2).toString('hex'))
+    var pubkeyStr = res.slice(0, -2).toString('hex')
+    var publicKey = new bitcore.PublicKey(pubkeyStr, {network: Networks.testnet})
     var address = publicKey.toAddress()
     console.log('Your bitcoin address: ' + address)
+    console.log('Your pubkey: ' + publicKey.toString())
   })
   .catch(function (error) {
     console.log('DEBUG1')

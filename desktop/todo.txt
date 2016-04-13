@@ -1,0 +1,2 @@
+- my guess is that there's an endian issue with the signature
+- it only verifies with big-endian and bitcoin needs little-endian
