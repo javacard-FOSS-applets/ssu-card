@@ -1,4 +1,5 @@
-- parse utxos based on some API, blockr.io is fine
-- implement end-to-end tx on card touch
 - implement on main-net
 - implement for geth
+- split into 2-3 change addresses if possible
+
+- security -- test a function that introduces response delay on the card
